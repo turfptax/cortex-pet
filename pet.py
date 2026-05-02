@@ -43,7 +43,7 @@ from queue import Queue, Empty
 import urllib.request
 import urllib.error
 
-from config import (
+from pet_config import (
     PET_ENABLED,
     PET_MODEL_PATH,
     PET_LORA_PATH,

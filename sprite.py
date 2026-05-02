@@ -12,7 +12,7 @@ import time
 
 from PIL import Image
 
-from config import SPRITE_DIR, PET_SPRITE_SIZE
+from pet_config import SPRITE_DIR, PET_SPRITE_SIZE
 
 
 class SpriteAnimator:

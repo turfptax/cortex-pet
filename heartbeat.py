@@ -36,7 +36,7 @@ import urllib.error
 from datetime import datetime, timezone, timedelta
 
 from body_shell import BodyShell, parse_run_commands, strip_run_commands
-from config import (
+from pet_config import (
     HEARTBEAT_ENABLED,
     HEARTBEAT_INTERVAL_S,
     HEARTBEAT_INTERVAL_LOW_ENERGY_MULT,
@@ -51,17 +51,20 @@ from config import (
     PET_REPEAT_PENALTY,
     PET_NAME,
     PET_STAGE_NAMES,
-    # Battery-energy blending
+    # Pet-side battery-energy blending
     BATTERY_ENERGY_WEIGHT,
     INFERENCE_ENERGY_WEIGHT,
-    BATTERY_FORCE_SLEEP_PCT,
-    BATTERY_CRITICAL_PCT,
     BATTERY_DREAM_MIN_PCT,
     # Dream
     DREAM_ENABLED,
     DREAM_MIN_INTERACTIONS,
     DREAM_COOLDOWN_HOURS,
     DREAM_HUB_TIMEOUT_S,
+)
+# Real battery thresholds (hardware behavior) stay in core config.py.
+from config import (
+    BATTERY_FORCE_SLEEP_PCT,
+    BATTERY_CRITICAL_PCT,
 )
 
 log = logging.getLogger("heartbeat")

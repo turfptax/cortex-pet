@@ -17,7 +17,7 @@ import time
 import numpy as np
 from PIL import Image, ImageDraw
 
-from config import PET_SPRITE_SIZE
+from pet_config import PET_SPRITE_SIZE
 
 VOXEL_PATH = os.path.join(
     os.path.dirname(os.path.abspath(__file__)),
