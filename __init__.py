@@ -1,41 +1,35 @@
-"""Cortex pet plugin — slice 2b1.
+"""Cortex pet plugin — slice 2b2.
 
-Instantiates PetEngine and Heartbeat against the plugin's own pet.db. The
-old in-core path in cortex-core/src/main.py keeps creating its own
-PetEngine + Heartbeat against cortex.db so we have a verifiable
-parallel state for one slice.
+The pet plugin owns the runtime now. main.py no longer creates its own
+PetEngine or Heartbeat; instead it pulls the references off the loaded
+PetPlugin and passes them into CortexProtocol and StateContext.
 
-Important constraint for slice 2b1
-----------------------------------
-The plugin's Heartbeat is INSTANTIATED but NOT STARTED. The in-core
-heartbeat thread is still running; starting another would mean:
-  - double autonomous reflections every ~30 min
-  - double inference load on the Pi's llama-server
-  - duplicated heartbeat_log rows in different DBs (ugly but harmless)
+on_load():
+  1. Migrate existing pet rows from cortex.db into pet.db (one-time,
+     gated by a flag in pet_state — safe to re-run).
+  2. Construct PetEngine against pet.db, which now holds the migrated
+     history (so vitals load with the real feeds=82 / cleans=360 etc.).
+  3. Construct Heartbeat and START it. This is now the only autonomous
+     reflection loop on the device.
 
-Slice 2b2 removes the in-core heartbeat and calls self.heartbeat.start()
-here so the plugin owns the autonomous loop.
-
-Likewise the plugin's PetEngine spawns its own pet-inference daemon
-thread, but the queue stays empty unless something calls ask() on it,
-so the thread just blocks waiting. No work, no llama-server contention.
+Slice 2c removes the dead pet tables from cortex.db (and their CREATE
+statements + the ~85 PET_*/HEARTBEAT_* config keys that pet.py still
+imports from cortex's config).
 """
 
 import logging
 
 from plugin_api import Plugin
-
-# Resolved via sys.path entry added by plugins_runtime when this module
-# is imported. plugins/pet/ contains pet.py, heartbeat.py, body_shell.py.
 from pet import PetEngine
 from heartbeat import Heartbeat
+from migrate import migrate_if_needed
 
 
 log = logging.getLogger("plugin.pet")
 
 
 class PetPlugin(Plugin):
-    """Pet plugin owning its own PetEngine + Heartbeat instances."""
+    """Pet plugin owning PetEngine + Heartbeat against pet.db."""
 
     def __init__(self, api):
         super().__init__(api)
@@ -43,18 +37,34 @@ class PetPlugin(Plugin):
         self.heartbeat = None
 
     def on_load(self) -> None:
-        # Plugin's PetEngine talks to plugins/pet/data/pet.db (fresh,
-        # empty, no migrated history yet — that's slice 2b2).
-        self.pet_engine = PetEngine(self.api.db, battery=None)
-        self.api.log.info(
-            "plugin PetEngine created (parallel to core path; using pet.db)"
-        )
+        # ── Step 1: one-time migration from cortex.db ───────────────
+        try:
+            cortex_db_path = self.api.core_db_path
+            pet_db_path = self.api.plugin_data / "pet.db"
+            counts = migrate_if_needed(cortex_db_path, pet_db_path)
+            if counts:
+                total = sum(counts.values())
+                self.api.log.info(
+                    "pet.db migration ok: %d rows across %d tables",
+                    total, len(counts),
+                )
+        except Exception as e:
+            # Don't take down core if migration hits a snag — let
+            # PetEngine come up against whatever's in pet.db today.
+            self.api.log.exception(
+                "migration failed: %s — continuing with current pet.db state", e
+            )
 
-        self.heartbeat = Heartbeat(self.api.db, self.pet_engine, battery=None)
-        # Deliberately NOT started in 2b1 — see module docstring.
-        self.api.log.info(
-            "plugin Heartbeat created (NOT started in 2b1 — slice 2b2 will start it)"
+        # ── Step 2: PetEngine against pet.db (now holds the history) ──
+        self.pet_engine = PetEngine(self.api.db, battery=self.api.battery)
+        self.api.log.info("pet engine ready")
+
+        # ── Step 3: Heartbeat owns the autonomous loop ──────────────
+        self.heartbeat = Heartbeat(
+            self.api.db, self.pet_engine, battery=self.api.battery
         )
+        self.heartbeat.start()
+        self.api.log.info("heartbeat started (plugin owns the autonomous loop now)")
 
     def on_unload(self) -> None:
         if self.heartbeat is not None and hasattr(self.heartbeat, "stop"):
