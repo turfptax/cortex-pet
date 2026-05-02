@@ -1,0 +1,42 @@
+[plugin]
+name = "pet"
+version = "0.1.0"
+description = "Tamagotchi-style AI companion (slice 2a stub)"
+author = "turfptax"
+entrypoint = "pet"
+enabled = true
+
+[capabilities]
+db = true                       # plugin will own plugins/pet/data/pet.db (slice 2b)
+display_screens = true          # registers Tamagotchi screens with core display bus
+mcp_tools = true                # plugin__pet__feed/clean/chat/analytics
+http_routes = true              # mounted under /plugins/pet/*
+background_tasks = true         # heartbeat loop, vitals decay
+core_memory_read = true         # ingest notes/sessions for training data
+core_memory_write = false       # never writes to cortex.db
+llm = true
+
+[llm]
+backend = "ondevice"            # local llama-server on Pi (port 8081)
+model = "qwen3.5-0.8b-pet-finetuned-bloom-21"
+fallback = "lmstudio"
+
+[hooks]
+subscribe = [
+  "note.created",
+  "session.ended",
+  "tick.300s",
+  "display.idle",
+  "power.low",
+]
+
+[config]
+# Placeholder. The ~85 PET_*/HEARTBEAT_*/DREAM_*/COMA_*/etc. config keys
+# move from cortex-core/src/config.py to here in slice 2c.
+hunger_decay_per_hour = 0.04
+coma_threshold = 0.10
+heartbeat_interval_s = 1800
+
+[dependencies]
+core_min = "0.1.0"
+plugins = []
