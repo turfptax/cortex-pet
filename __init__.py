@@ -21,6 +21,7 @@ from plugin_api import Plugin, Route
 from pet import PetEngine
 from heartbeat import Heartbeat
 from migrate import migrate_if_needed
+from pet_db import PetDB
 from pet_config import DREAM_MIN_INTERACTIONS, DREAM_COOLDOWN_HOURS
 
 
@@ -356,10 +357,24 @@ class PetPlugin(Plugin):
     # ── Lifecycle ───────────────────────────────────────────────────
 
     def on_load(self) -> None:
-        # ── Step 1: one-time migration from cortex.db ───────────────
+        pet_db_path = self.api.plugin_data / "pet.db"
+
+        # ── Step 1: open PetDB first so pet tables exist ──────────────
+        # cortex_db.py (post-2c2d) no longer carries pet schema, so the
+        # generic CortexDB the runtime opened against pet.db has no pet
+        # tables. PetDB extends CortexDB and adds them. Must happen
+        # BEFORE migrate_if_needed which reads/writes pet_state.
+        if self.api.db is not None:
+            try:
+                self.api.db.close()
+            except Exception:
+                pass
+        self.api.db = PetDB(str(pet_db_path))
+        self.api.log.info("pet.db opened via PetDB (pet schema + helpers)")
+
+        # ── Step 2: one-time migration from cortex.db ───────────────
         try:
             cortex_db_path = self.api.core_db_path
-            pet_db_path = self.api.plugin_data / "pet.db"
             counts = migrate_if_needed(cortex_db_path, pet_db_path)
             if counts:
                 total = sum(counts.values())
@@ -374,11 +389,11 @@ class PetPlugin(Plugin):
                 "migration failed: %s — continuing with current pet.db state", e
             )
 
-        # ── Step 2: PetEngine against pet.db (now holds the history) ──
+        # ── Step 3: PetEngine against pet.db (now holds the history) ──
         self.pet_engine = PetEngine(self.api.db, battery=self.api.battery)
         self.api.log.info("pet engine ready")
 
-        # ── Step 3: Heartbeat owns the autonomous loop ──────────────
+        # ── Step 4: Heartbeat owns the autonomous loop ──────────────
         self.heartbeat = Heartbeat(
             self.api.db, self.pet_engine, battery=self.api.battery
         )
