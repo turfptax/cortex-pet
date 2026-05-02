@@ -19,7 +19,7 @@ imports from cortex's config).
 
 import logging
 
-from plugin_api import Plugin
+from plugin_api import Plugin, Route
 from pet import PetEngine
 from heartbeat import Heartbeat
 from migrate import migrate_if_needed
@@ -35,6 +35,41 @@ class PetPlugin(Plugin):
         super().__init__(api)
         self.pet_engine = None
         self.heartbeat = None
+
+    def http_routes(self):
+        """Routes mounted by the core HTTP server.
+
+        Slice 2c2b — only a status stub for now to verify the route
+        mounting framework works. Slice 2c2c migrates the full surface
+        (feed, clean, chat, vitals, etc.) over from cortex_protocol.py's
+        24 pet/heartbeat CMD handlers.
+
+        All routes mount under /plugins/pet/<path> with handler signature:
+            (payload: dict) -> dict
+        """
+        return [
+            Route("GET", "/status", self._http_status),
+        ]
+
+    def _http_status(self, payload):
+        """GET /plugins/pet/status — basic plugin liveness + stats snapshot."""
+        if self.pet_engine is None:
+            return {"ok": False, "error": "pet engine not initialized"}
+        try:
+            stats = self.pet_engine.get_stats()
+        except Exception as e:
+            return {"ok": False, "error": "get_stats failed: {}".format(e)}
+        return {
+            "ok": True,
+            "plugin": "pet",
+            "version": "0.1.0",
+            "engine_loaded": True,
+            "heartbeat_running": (
+                self.heartbeat is not None
+                and getattr(self.heartbeat, "_running", False)
+            ),
+            "stats": stats,
+        }
 
     def on_load(self) -> None:
         # ── Step 1: one-time migration from cortex.db ───────────────
