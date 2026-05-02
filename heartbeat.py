@@ -550,7 +550,7 @@ class Heartbeat:
                 tokens = usage.get("completion_tokens", 0)
 
                 # Drain energy for this inference
-                from config import PET_ENERGY_COST_PER_INFERENCE_MS, PET_ENERGY_COST_CAP
+                from pet_config import PET_ENERGY_COST_PER_INFERENCE_MS, PET_ENERGY_COST_CAP
                 cost = min(PET_ENERGY_COST_CAP,
                            elapsed_ms * PET_ENERGY_COST_PER_INFERENCE_MS)
                 self._pet._vitals.drain_energy(cost)
@@ -590,7 +590,7 @@ class Heartbeat:
             return
 
         # Energy low → auto-sleep after delay
-        from config import PET_SLEEP_AUTO_ENERGY_THRESHOLD, PET_SLEEP_AUTO_DELAY_S
+        from pet_config import PET_SLEEP_AUTO_ENERGY_THRESHOLD, PET_SLEEP_AUTO_DELAY_S
         energy = self._pet.energy
         if energy < PET_SLEEP_AUTO_ENERGY_THRESHOLD:
             if self._auto_sleep_warning_start is None:
