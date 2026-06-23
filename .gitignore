@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Secrets / local config (never commit)
+.env
+secrets.toml
+*.secret
+
+# Local databases / runtime data
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
